@@ -1,6 +1,7 @@
 import { Inngest } from "inngest";
 import connectDB from "@/config/db";
 import User from "@/models/User";
+import Order from "@/models/Order";
 
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "quickcart-next" });
@@ -14,7 +15,8 @@ export const syncUsercreation = inngest.createFunction(
 
   { event: "clerk/user.created" },
   async ({ event }) => {
-    const { id, first_name, last_name, email_addresses, image_url } = event.data;
+    const { id, first_name, last_name, email_addresses, image_url } =
+      event.data;
     const userData = {
       _id: id,
       name: first_name + " " + last_name,
@@ -33,7 +35,8 @@ export const syncUserUpdation = inngest.createFunction(
   },
   { event: "clerk/user.updated" },
   async ({ event }) => {
-    const { id, first_name, last_name, email_addresses, image_url } = event.data;
+    const { id, first_name, last_name, email_addresses, image_url } =
+      event.data;
     const userData = {
       _id: id,
       name: first_name + " " + last_name,
@@ -55,5 +58,33 @@ export const syncUserDeletion = inngest.createFunction(
     const { id } = event.data;
     await connectDB();
     await User.findByIdAndDelete(id);
+  }
+);
+
+// Inngest Function to create user order in database
+
+export const createUserOrder = inngest.createFunction(
+  {
+    id: 'create-user-orde',
+    batchEvents: {
+      maxSize: 25,
+      timeout: "5s",
+    },
+  },
+  { event:'order/created' },
+  async ({ events }) => {
+    const orders = events.map((event) => {
+      return {
+        userId: event.data.userId,
+        items: event.data.items,
+        amount: event.data.amount,
+        address: event.data.address,
+        date: event.data.date,
+      };
+    });
+    await connectDB();
+    await Order.insertMany(orders);
+
+    return { success: true, processed: orders.length };
   }
 );
